@@ -1,11 +1,9 @@
 {
-  "meta": {
-    "version": "PTDL_v2"
-  },
-  "exported_at": "2025-03-04T00:00:00+00:00",
+  "meta": { "version": "PTDL_v2" },
+  "exported_at": "2026-01-04T00:00:00+00:00",
   "name": "The Riftbreaker Dedicated Server (Wine)",
   "author": "Codex",
-  "description": "Runs The Riftbreaker Dedicated Server under Wine with xvfb-run. Requires UDP 6321 and TCP 1127 allocations. Installs SteamCMD locally and verifies bin/DedicatedServer.exe.",
+  "description": "Runs The Riftbreaker Dedicated Server under Wine with xvfb-run. Ensures /mnt/server is writable, installs SteamCMD under /mnt/server/steamcmd, forces Windows content, and verifies bin/DedicatedServer.exe.",
   "features": null,
   "docker_images": {
     "Wine (latest)": "ghcr.io/pelican-eggs/yolks:wine_latest"
@@ -15,10 +13,7 @@
   "config": {
     "files": "{}",
     "startup": {
-      "done": [
-        "Dedicated server running",
-        "Server running"
-      ],
+      "done": [ "Dedicated server running", "Server running" ],
       "userInteraction": [],
       "log": "server.log"
     },
@@ -27,7 +22,7 @@
   },
   "scripts": {
     "installation": {
-      "script": "#!/bin/bash\nset -euo pipefail\n\nif [ ! -w /mnt/server ]; then\n  echo \"Error: /mnt/server is not writable. Aborting install.\" >&2\n  exit 1\nfi\n\nexport DEBIAN_FRONTEND=noninteractive\napt-get update\napt-get install -y --no-install-recommends ca-certificates curl lib32gcc-s1 lib32stdc++6 xvfb\nrm -rf /var/lib/apt/lists/*\n\nmkdir -p /mnt/server/steamcmd\ncd /mnt/server/steamcmd\n\nif [ ! -f steamcmd.sh ]; then\n  curl -sSL \"https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz\" -o steamcmd_linux.tar.gz\n  tar -xzf steamcmd_linux.tar.gz\nfi\n\nBRANCH=\"${STEAM_BETA_BRANCH:-}\"\nPASSWORD=\"${STEAM_BETA_PASSWORD:-}\"\nBETA_ARGS=\"-beta public\"\nif [ -n \"$BRANCH\" ]; then\n  BETA_ARGS=\"-beta ${BRANCH}\"\n  if [ -n \"$PASSWORD\" ]; then\n    BETA_ARGS+=\" -betapassword ${PASSWORD}\"\n  fi\nfi\n\n./steamcmd.sh +force_install_dir /mnt/server +login anonymous +app_update 4114030 ${BETA_ARGS} validate +quit\n\nif [ ! -f /mnt/server/bin/DedicatedServer.exe ]; then\n  echo \"Error: /mnt/server/bin/DedicatedServer.exe not found after install.\" >&2\n  exit 1\nfi\n\necho \"Installation complete.\"\n",
+      "script": "#!/bin/bash\nset -euo pipefail\n\nINSTALL_DIR=\"/mnt/server\"\nSTEAMCMD_DIR=\"${INSTALL_DIR}/steamcmd\"\nTARGET_UID=1000\nTARGET_GID=1000\n\nmkdir -p \"${INSTALL_DIR}\"\nchown -R \"${TARGET_UID}:${TARGET_GID}\" \"${INSTALL_DIR}\"\nif [ ! -w \"${INSTALL_DIR}\" ]; then\n  echo \"Error: ${INSTALL_DIR} is not writable. Aborting install.\" >&2\n  exit 1\nfi\n\nexport HOME=\"${INSTALL_DIR}\"\nexport DEBIAN_FRONTEND=noninteractive\napt-get update\napt-get install -y --no-install-recommends ca-certificates curl lib32gcc-s1 lib32stdc++6 xvfb\nrm -rf /var/lib/apt/lists/*\n\nmkdir -p \"${STEAMCMD_DIR}\"\ncd \"${STEAMCMD_DIR}\"\nif [ ! -f steamcmd.sh ]; then\n  curl -sSL \"https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz\" -o steamcmd_linux.tar.gz\n  tar -xzf steamcmd_linux.tar.gz\nfi\n\nBRANCH=\"${STEAM_BETA_BRANCH:-}\"\nPASSWORD=\"${STEAM_BETA_PASSWORD:-}\"\nBETA_ARGS=\"-beta public\"\nif [ -n \"${BRANCH}\" ]; then\n  BETA_ARGS=\"-beta ${BRANCH}\"\n  if [ -n \"${PASSWORD}\" ]; then\n    BETA_ARGS+=\" -betapassword ${PASSWORD}\"\n  fi\nfi\n\n./steamcmd.sh +@sSteamCmdForcePlatformType windows +force_install_dir \"${INSTALL_DIR}\" +login anonymous +app_update 4114030 ${BETA_ARGS} validate +quit\n\nif [ ! -f \"${INSTALL_DIR}/bin/DedicatedServer.exe\" ]; then\n  echo \"Error: ${INSTALL_DIR}/bin/DedicatedServer.exe not found after install.\" >&2\n  exit 1\nfi\n\nchown -R \"${TARGET_UID}:${TARGET_GID}\" \"${INSTALL_DIR}\"\necho \"Installation complete.\"\n",
       "container": "debian:bookworm-slim",
       "entrypoint": "bash"
     }
