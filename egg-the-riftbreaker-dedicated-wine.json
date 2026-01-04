@@ -4,15 +4,15 @@
     "update_url": null
   },
   "exported_at": "2026-01-04T00:00:00-06:00",
-  "name": "The Riftbreaker Dedicated Server (SteamCMD + Wine)",
+  "name": "The Riftbreaker Dedicated Server (SteamCMD + Wine + Xvfb)",
   "author": "Brandon",
-  "description": "Installs The Riftbreaker Dedicated Server (Steam Tool AppID 4114030) via SteamCMD and runs it with Wine.\n\nREQUIRED ALLOCATIONS:\n- UDP 6321 (game traffic)\n- TCP 1127 (initial matchmaking/handshake)\n\nNotes:\n- Startup args are intentionally minimal to avoid engine-guessing. Default includes disable_steam=1.",
+  "description": "Installs The Riftbreaker Dedicated Server (Steam Tool AppID 4114030) via SteamCMD and runs it with Wine under Xvfb (headless display).\n\nREQUIRED ALLOCATIONS:\n- UDP 6321 (game traffic)\n- TCP 1127 (initial matchmaking/handshake)\n\nNotes:\n- Startup args intentionally minimal. Uses disable_steam=1.\n- Uses Xvfb because the server binary still creates a window under Wine.",
   "features": null,
   "docker_images": {
     "Wine (Pelican yolk)": "ghcr.io/pelican-eggs/yolks:wine_latest"
   },
   "file_denylist": [],
-  "startup": "wine bin\\\\DedicatedServer.exe disable_steam=1",
+  "startup": "bash -lc 'command -v xvfb-run >/dev/null 2>&1 || { echo \"[error] xvfb-run not found in this yolk. Use a wine yolk that includes Xvfb (or switch yolk).\"; exit 1; }; xvfb-run -a -s \"-screen 0 1024x768x24\" wine bin\\\\DedicatedServer.exe disable_steam=1'",
   "config": {
     "files": "{}",
     "startup": "{\n  \"done\": \"Dedicated Server\"\n}",
