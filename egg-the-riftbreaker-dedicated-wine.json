@@ -6,7 +6,7 @@
   "exported_at": "2026-01-04T00:00:00-06:00",
   "name": "The Riftbreaker Dedicated Server (SteamCMD + Wine)",
   "author": "Brandon",
-  "description": "Installs The Riftbreaker Dedicated Server (Steam Tool AppID 4114030) via SteamCMD and runs it with Wine. Requires allocations: UDP 6321 (game) and TCP 1127 (matchmaking/handshake).",
+  "description": "Installs The Riftbreaker Dedicated Server (Steam Tool AppID 4114030) via SteamCMD and runs it with Wine.\n\nREQUIRED ALLOCATIONS:\n- UDP 6321 (game traffic)\n- TCP 1127 (initial matchmaking/handshake)\n\nNotes:\n- Startup args are intentionally minimal to avoid engine-guessing. Default includes disable_steam=1.",
   "features": null,
   "docker_images": {
     "Wine (Pelican yolk)": "ghcr.io/pelican-eggs/yolks:wine_latest"
@@ -21,7 +21,7 @@
   },
   "scripts": {
     "installation": {
-      "script": "#!/bin/bash\nset -euo pipefail\n\ncd /mnt/server\n\nAPP_ID=\"4114030\"\nINSTALL_DIR=\"/mnt/server\"\n\n# Build optional beta args\nBETA_ARGS=\"\"\nif [[ -n \"${STEAM_BETA_BRANCH:-}\" ]]; then\n  BETA_ARGS+=\" -beta ${STEAM_BETA_BRANCH}\"\n  if [[ -n \"${STEAM_BETA_PASSWORD:-}\" ]]; then\n    BETA_ARGS+=\" -betapassword ${STEAM_BETA_PASSWORD}\"\n  fi\nfi\n\necho \"[install] Installing The Riftbreaker Dedicated Server (AppID: ${APP_ID})\"\nsteamcmd \\\n  +force_install_dir \"${INSTALL_DIR}\" \\\n  +login anonymous \\\n  +app_update \"${APP_ID}\"${BETA_ARGS} validate \\\n  +quit\n\n# Sanity checks\nif [[ ! -f \"/mnt/server/bin/DedicatedServer.exe\" ]]; then\n  echo \"[install][error] Expected /mnt/server/bin/DedicatedServer.exe not found.\"\n  echo \"[install][hint] Check SteamCMD output above for errors, branch/password issues, or AppID changes.\"\n  echo \"[install][hint] Contents of /mnt/server:\"; ls -la /mnt/server || true\n  echo \"[install][hint] Contents of /mnt/server/bin:\"; ls -la /mnt/server/bin || true\n  exit 1\nfi\n\necho \"[install] OK: DedicatedServer.exe found.\"\n",
+      "script": "#!/bin/bash\nset -euo pipefail\n\ncd /mnt/server\n\nAPP_ID=\"4114030\"\nINSTALL_DIR=\"/mnt/server\"\nSTEAMCMD_DIR=\"/mnt/server/steamcmd\"\n\n# Optional beta args\nBETA_ARGS=\"\"\nif [[ -n \"${STEAM_BETA_BRANCH:-}\" ]]; then\n  BETA_ARGS+=\" -beta ${STEAM_BETA_BRANCH}\"\n  if [[ -n \"${STEAM_BETA_PASSWORD:-}\" ]]; then\n    BETA_ARGS+=\" -betapassword ${STEAM_BETA_PASSWORD}\"\n  fi\nfi\n\necho \"[install] Installing dependencies (SteamCMD + 32-bit runtime libs)...\"\nexport DEBIAN_FRONTEND=noninteractive\napt-get update -y\napt-get install -y --no-install-recommends \\\n  ca-certificates curl tar bzip2 xz-utils \\\n  lib32gcc-s1 libc6-i386 lib32stdc++6\n\necho \"[install] Fetching SteamCMD...\"\nmkdir -p \"${STEAMCMD_DIR}\"\ncd \"${STEAMCMD_DIR}\"\n\nif [[ ! -f \"steamcmd.sh\" ]]; then\n  curl -fsSL \"https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz\" -o steamcmd_linux.tar.gz\n  tar -xzf steamcmd_linux.tar.gz\n  chmod +x steamcmd.sh\nfi\n\necho \"[install] Running SteamCMD install/update for AppID ${APP_ID}...\"\n./steamcmd.sh \\\n  +force_install_dir \"${INSTALL_DIR}\" \\\n  +login anonymous \\\n  +app_update \"${APP_ID}\"${BETA_ARGS} validate \\\n  +quit\n\necho \"[install] Verifying server binary exists...\"\nif [[ ! -f \"/mnt/server/bin/DedicatedServer.exe\" ]]; then\n  echo \"[install][error] Expected /mnt/server/bin/DedicatedServer.exe not found after install.\"\n  echo \"[install][hint] /mnt/server contents:\"; ls -la /mnt/server || true\n  echo \"[install][hint] /mnt/server/bin contents:\"; ls -la /mnt/server/bin || true\n  exit 1\nfi\n\necho \"[install] OK: DedicatedServer.exe found.\"\n",
       "container": "ghcr.io/pelican-eggs/installers:debian",
       "entrypoint": "bash"
     }
@@ -29,7 +29,7 @@
   "variables": [
     {
       "name": "Steam Beta Branch",
-      "description": "Optional Steam branch name. Leave blank for public. Only set this if EXOR tells you to use a specific branch.",
+      "description": "Optional Steam branch name. Leave blank for public.",
       "env_variable": "STEAM_BETA_BRANCH",
       "default_value": "",
       "user_viewable": true,
