@@ -1,49 +1,57 @@
 {
   "meta": {
-    "version": "PTDL_v2",
-    "update_url": null
+    "version": "PTDL_v2"
   },
-  "exported_at": "2026-01-04T00:00:00-06:00",
-  "name": "The Riftbreaker Dedicated Server (SteamCMD + Wine + Xvfb)",
-  "author": "Brandon",
-  "description": "Installs The Riftbreaker Dedicated Server (Steam Tool AppID 4114030) via SteamCMD and runs it with Wine under Xvfb (headless display).\n\nREQUIRED ALLOCATIONS:\n- UDP 6321 (game traffic)\n- TCP 1127 (initial matchmaking/handshake)\n\nNotes:\n- Startup args intentionally minimal. Uses disable_steam=1.\n- Uses Xvfb because the server binary still creates a window under Wine.",
+  "exported_at": "2025-03-04T00:00:00+00:00",
+  "name": "The Riftbreaker Dedicated Server (Wine)",
+  "author": "Codex",
+  "description": "Runs The Riftbreaker Dedicated Server under Wine with xvfb-run. Requires UDP 6321 and TCP 1127 allocations. Installs SteamCMD locally and verifies bin/DedicatedServer.exe.",
   "features": null,
   "docker_images": {
-    "Wine (Pelican yolk)": "ghcr.io/pelican-eggs/yolks:wine_latest"
+    "Wine (latest)": "ghcr.io/pelican-eggs/yolks:wine_latest"
   },
   "file_denylist": [],
-  "startup": "bash -lc 'command -v xvfb-run >/dev/null 2>&1 || { echo \"[error] xvfb-run not found in this yolk. Use a wine yolk that includes Xvfb (or switch yolk).\"; exit 1; }; xvfb-run -a -s \"-screen 0 1024x768x24\" wine bin\\\\DedicatedServer.exe disable_steam=1'",
+  "startup": "bash -lc 'xvfb-run -a -s \"-screen 0 1024x768x24\" wine bin\\DedicatedServer.exe disable_steam=1'",
   "config": {
     "files": "{}",
-    "startup": "{\n  \"done\": \"Dedicated Server\"\n}",
+    "startup": {
+      "done": [
+        "Dedicated server running",
+        "Server running"
+      ],
+      "userInteraction": [],
+      "log": "server.log"
+    },
     "logs": "{}",
     "stop": "^C"
   },
   "scripts": {
     "installation": {
-      "script": "#!/bin/bash\nset -euo pipefail\n\ncd /mnt/server\n\nAPP_ID=\"4114030\"\nINSTALL_DIR=\"/mnt/server\"\nSTEAMCMD_DIR=\"/mnt/server/steamcmd\"\n\n# Optional beta args\nBETA_ARGS=\"\"\nif [[ -n \"${STEAM_BETA_BRANCH:-}\" ]]; then\n  BETA_ARGS+=\" -beta ${STEAM_BETA_BRANCH}\"\n  if [[ -n \"${STEAM_BETA_PASSWORD:-}\" ]]; then\n    BETA_ARGS+=\" -betapassword ${STEAM_BETA_PASSWORD}\"\n  fi\nfi\n\necho \"[install] Installing dependencies (SteamCMD + 32-bit runtime libs)...\"\nexport DEBIAN_FRONTEND=noninteractive\napt-get update -y\napt-get install -y --no-install-recommends \\\n  ca-certificates curl tar bzip2 xz-utils \\\n  lib32gcc-s1 libc6-i386 lib32stdc++6\n\necho \"[install] Fetching SteamCMD...\"\nmkdir -p \"${STEAMCMD_DIR}\"\ncd \"${STEAMCMD_DIR}\"\n\nif [[ ! -f \"steamcmd.sh\" ]]; then\n  curl -fsSL \"https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz\" -o steamcmd_linux.tar.gz\n  tar -xzf steamcmd_linux.tar.gz\n  chmod +x steamcmd.sh\nfi\n\necho \"[install] Running SteamCMD install/update for AppID ${APP_ID}...\"\n./steamcmd.sh \\\n  +force_install_dir \"${INSTALL_DIR}\" \\\n  +login anonymous \\\n  +app_update \"${APP_ID}\"${BETA_ARGS} validate \\\n  +quit\n\necho \"[install] Verifying server binary exists...\"\nif [[ ! -f \"/mnt/server/bin/DedicatedServer.exe\" ]]; then\n  echo \"[install][error] Expected /mnt/server/bin/DedicatedServer.exe not found after install.\"\n  echo \"[install][hint] /mnt/server contents:\"; ls -la /mnt/server || true\n  echo \"[install][hint] /mnt/server/bin contents:\"; ls -la /mnt/server/bin || true\n  exit 1\nfi\n\necho \"[install] OK: DedicatedServer.exe found.\"\n",
-      "container": "ghcr.io/pelican-eggs/installers:debian",
+      "script": "#!/bin/bash\nset -euo pipefail\n\nif [ ! -w /mnt/server ]; then\n  echo \"Error: /mnt/server is not writable. Aborting install.\" >&2\n  exit 1\nfi\n\nexport DEBIAN_FRONTEND=noninteractive\napt-get update\napt-get install -y --no-install-recommends ca-certificates curl lib32gcc-s1 lib32stdc++6 xvfb\nrm -rf /var/lib/apt/lists/*\n\nmkdir -p /mnt/server/steamcmd\ncd /mnt/server/steamcmd\n\nif [ ! -f steamcmd.sh ]; then\n  curl -sSL \"https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz\" -o steamcmd_linux.tar.gz\n  tar -xzf steamcmd_linux.tar.gz\nfi\n\nBRANCH=\"${STEAM_BETA_BRANCH:-}\"\nPASSWORD=\"${STEAM_BETA_PASSWORD:-}\"\nBETA_ARGS=\"-beta public\"\nif [ -n \"$BRANCH\" ]; then\n  BETA_ARGS=\"-beta ${BRANCH}\"\n  if [ -n \"$PASSWORD\" ]; then\n    BETA_ARGS+=\" -betapassword ${PASSWORD}\"\n  fi\nfi\n\n./steamcmd.sh +force_install_dir /mnt/server +login anonymous +app_update 4114030 ${BETA_ARGS} validate +quit\n\nif [ ! -f /mnt/server/bin/DedicatedServer.exe ]; then\n  echo \"Error: /mnt/server/bin/DedicatedServer.exe not found after install.\" >&2\n  exit 1\nfi\n\necho \"Installation complete.\"\n",
+      "container": "debian:bookworm-slim",
       "entrypoint": "bash"
     }
   },
   "variables": [
     {
       "name": "Steam Beta Branch",
-      "description": "Optional Steam branch name. Leave blank for public.",
+      "description": "Optional Steam beta branch name. Leave blank for public.",
       "env_variable": "STEAM_BETA_BRANCH",
       "default_value": "",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "nullable|string|max:64"
+      "rules": "nullable|string|max:100",
+      "field_type": "text"
     },
     {
       "name": "Steam Beta Password",
-      "description": "Optional password for the Steam beta branch (leave blank if none).",
+      "description": "Optional password for the specified beta branch.",
       "env_variable": "STEAM_BETA_PASSWORD",
       "default_value": "",
       "user_viewable": true,
       "user_editable": true,
-      "rules": "nullable|string|max:128"
+      "rules": "nullable|string|max:100",
+      "field_type": "text"
     }
   ]
 }
